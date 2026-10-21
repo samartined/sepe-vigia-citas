@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Cita Previa</title>
+<!-- Imitación mínima de la pantalla de canal de la cita previa del SEPE.
+     Reproduce los identificadores, el marcado y el comportamiento que usa el vigía:
+     - <select id="comboCanales"> con onChange="limpiarMensajes();cargaOficinasMapa();"
+     - POST a cita/cargaOficinasMapa (formulario) que devuelve { listaTramites, listaOficina }
+     - la lista se pinta en #cntOficinas (solo oficinas con primerHuecoDisponible)
+     - sin huecos: #info-franja-disponible con "En estos momentos no podemos ofrecerle citas…"
+     - marcarOficina(id) marca el checkbox y resalta el título, como el botón "Seleccionar". -->
+<style>
+  body { font: 14px sans-serif; margin: 16px; }
+  .tit-oficina.oficina-selected { color: #06c; }
+</style>
+</head>
+<body>
+<div id="contenido">
+  <div id="contenido2">
+    <label for="comboCanales">Canal(*)</label>
+    <select class="combo" title="canal" id="comboCanales" onChange="limpiarMensajes();cargaOficinasMapa();">
+      <option value="0">--- Seleccionar ---</option>
+      <option value="1">Presencial</option>
+      <option value="3">Telefónica</option>
+    </select>
+    <div class="contenedor-oficinas" id="cntOficinas">
+      <div id="info-franja-disponible"><span class="titulo-3">Seleccione el canal mediante el cual desea realizar su solicitud.</span></div>
+    </div>
+    <input class="boton boton-accion" id="btnContinuarMapa" type="button" value="Continuar">
+  </div>
+</div>
+<script>
+  function limpiarMensajes() {}
+
+  function cargaOficinasMapa() {
+    const canal = document.getElementById('comboCanales').value;
+    if (canal === '0') {
+      document.getElementById('cntOficinas').innerHTML = '<div id="info-franja-disponible"><span class="titulo-3">Seleccione el canal mediante el cual desea realizar su solicitud.</span></div>';
+      return;
+    }
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', 'cita/cargaOficinasMapa');
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+    xhr.onload = () => pintar(JSON.parse(xhr.responseText).listaOficina);
+    xhr.send(new URLSearchParams({ idCliente: '1', idGrupoServicio: '1', idTipoAtencion: canal, codigoPostal: '00000' }).toString());
+  }
+
+  function pintar(lista) {
+    const disponibles = lista.filter(o => o.primerHuecoDisponible);
+    const cnt = document.getElementById('cntOficinas');
+    if (!disponibles.length) {
+      cnt.innerHTML = '<div id="info-franja-disponible"><span class="titulo-3">En estos momentos no podemos ofrecerle citas en la oficina seleccionada.</span>' +
+        '<span class="titulo-3">Visite la sede electr&oacute;nica para sus gestiones.</span></div>';
+      return;
+    }
+    cnt.innerHTML = disponibles.map((o, i) => `
+      <div tabindex="12" id="cntOficina_${o.idOficina}" id-oficina="${o.idOficina}" class="contenido-mapa-info">
+        <h3 class="tit-oficina" id="titOficina_${o.idOficina}">
+          <div class="cnt_chkOficinas"><input type="checkbox" class="chkOficinas" id-oficina="${o.idOficina}" data-marker-oficina="${o.oficina}" id="chkOficina_${o.idOficina}" /></div>
+          ${String.fromCharCode(65 + i)}. ${o.oficina}
+        </h3>
+        <div class="info-oficina"><div class="cnt-primer-hueco"><h4>Primer hueco disponible:</h4><p>${o.primerHuecoDisponible}</p></div></div>
+      </div>`).join('');
+    document.querySelectorAll('.contenido-mapa-info').forEach(e => e.onclick = () => marcarOficina(e.getAttribute('id-oficina')));
+  }
+
+  function marcarOficina(id) {
+    const chk = document.getElementById('chkOficina_' + id);
+    if (!chk.checked) {
+      document.querySelectorAll('.chkOficinas').forEach(c => c.checked = false);
+      chk.checked = true;
+      document.querySelectorAll('.tit-oficina').forEach(t => t.classList.remove('oficina-selected'));
+      document.getElementById('titOficina_' + id).classList.add('oficina-selected');
+    }
+  }
+</script>
+</body>
+</html>
